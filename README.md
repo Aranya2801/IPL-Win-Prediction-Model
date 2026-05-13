@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="https://readme-typing-svg.demolab.com?font=Rajdhani&weight=700&size=42&duration=3000&pause=1000&color=FFD700&center=true&vCenter=true&width=900&lines=🏏+IPL+Win+Prediction+Model;Real-Time+Win+Probability+Engine;MIT-Level+ML+Engineering" alt="IPL Win Predictor" />
+<img 
+  src="https://readme-typing-svg.demolab.com?font=Rajdhani&weight=700&size=42&duration=3000&pause=1000&color=FFD700&center=true&vCenter=true&width=900&lines=%F0%9F%8F%8F+IPL+Win+Prediction+Model;Real-Time+Win+Probability+Engine;MIT-Level+ML+Engineering" 
+  alt="IPL Win Predictor" 
+/>
 
 <br/>
 
