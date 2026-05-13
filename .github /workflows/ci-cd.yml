@@ -1,0 +1,218 @@
+name: 🏏 IPL Win Predictor CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Retrain model weekly on Sundays at 2 AM UTC
+    - cron: "0 2 * * 0"
+
+env:
+  PYTHON_VERSION: "3.11"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── Code Quality ────────────────────────────────────────────────
+  lint:
+    name: 🔍 Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint tools
+        run: pip install black isort flake8 mypy
+
+      - name: Black format check
+        run: black --check --diff src/ streamlit_app/ scripts/
+
+      - name: isort check
+        run: isort --check-only src/ streamlit_app/ scripts/
+
+      - name: Flake8 lint
+        run: flake8 src/ streamlit_app/ --max-line-length=100 --extend-ignore=E203
+
+  # ── Tests ────────────────────────────────────────────────────────
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create sample data
+        run: python scripts/download_data.py --sample
+
+      - name: Run feature engineering
+        run: python src/features/feature_engineering.py
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v --tb=short
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          flags: unittests
+
+  # ── Security Scan ────────────────────────────────────────────────
+  security:
+    name: 🔐 Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Bandit security scanner
+        uses: jpetrucciani/bandit-check@master
+        with:
+          path: "src/"
+
+      - name: Run Safety dependency check
+        run: |
+          pip install safety
+          safety check -r requirements.txt
+
+  # ── Model Training ───────────────────────────────────────────────
+  train:
+    name: 🤖 Model Training (Fast Mode)
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Prepare data
+        run: |
+          python scripts/download_data.py --sample
+          python src/features/feature_engineering.py
+
+      - name: Train model (CI mode — no optimization)
+        run: |
+          python -c "
+          from src.models.train_model import IPLEnsembleModel, IPLDataLoader, FEATURE_COLS
+          loader = IPLDataLoader()
+          df, _ = loader.load()
+          model = IPLEnsembleModel(feature_cols=FEATURE_COLS, optimize=False)
+          model.train(df)
+          model.save()
+          print('Model CV Accuracy:', model.config.cv_score)
+          print('Model CV AUC:', model.config.auc_score)
+          "
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: models/
+          retention-days: 30
+
+  # ── Docker Build & Push ──────────────────────────────────────────
+  docker:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: train
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: models/
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha,prefix=sha-
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-api
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Streamlit image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: streamlit
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-streamlit
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Release ──────────────────────────────────────────────────────
+  release:
+    name: 📦 Create Release
+    runs-on: ubuntu-latest
+    needs: docker
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            models/*.pkl
+            models/*.json
