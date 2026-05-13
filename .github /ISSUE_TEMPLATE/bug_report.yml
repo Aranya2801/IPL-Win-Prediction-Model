@@ -1,0 +1,80 @@
+name: 🐛 Bug Report
+description: Report a bug in IPL Win Prediction Model
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill this out carefully.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: e.g. 2.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Feature Engineering
+        - Model Training
+        - FastAPI Backend
+        - Streamlit Dashboard
+        - Docker / Deployment
+        - CI/CD Pipeline
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clear description of the bug
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs / Traceback
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        - OS: 
+        - Python: 
+        - Docker: Yes/No
