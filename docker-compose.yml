@@ -1,0 +1,150 @@
+version: "3.9"
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║    IPL Win Prediction — Docker Compose (Production Stack)       ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+services:
+
+  # ── FastAPI Backend ──────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    image: ipl-win-predictor-api:latest
+    container_name: ipl_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ipl_network
+
+  # ── Streamlit Frontend ───────────────────────────────────────────
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: streamlit
+    image: ipl-win-predictor-streamlit:latest
+    container_name: ipl_streamlit
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE=http://api:8000
+    depends_on:
+      - api
+    networks:
+      - ipl_network
+
+  # ── Redis Cache ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ipl_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ipl_network
+
+  # ── MLflow Experiment Tracking ───────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.0
+    container_name: ipl_mlflow
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+    networks:
+      - ipl_network
+
+  # ── Nginx Reverse Proxy ──────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ipl_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - streamlit
+    networks:
+      - ipl_network
+
+  # ── Prometheus Metrics ───────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: ipl_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - ipl_network
+
+  # ── Grafana Dashboard ────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: ipl_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=ipl_admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    networks:
+      - ipl_network
+
+volumes:
+  redis_data:
+  mlflow_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  ipl_network:
+    driver: bridge

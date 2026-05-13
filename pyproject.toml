@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name            = "ipl-win-prediction-model"
+version         = "2.0.0"
+description     = "MIT-level IPL Win Probability Predictor — Stacked Ensemble ML with Bayesian Optimization"
+readme          = "README.md"
+license         = { file = "LICENSE" }
+authors         = [{ name = "Aranya2801", email = "aranya2801@example.com" }]
+keywords        = ["ipl", "cricket", "machine-learning", "xgboost", "lightgbm", "streamlit", "fastapi"]
+classifiers     = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+dependencies    = [
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "xgboost>=2.0.0",
+    "lightgbm>=4.1.0",
+    "optuna>=3.4.0",
+    "shap>=0.44.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "streamlit>=1.31.0",
+    "plotly>=5.18.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=23.12.0",
+    "isort>=5.13.0",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+docs = [
+    "mkdocs>=1.5.3",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+all = ["ipl-win-prediction-model[dev,docs]"]
+
+[project.urls]
+Homepage       = "https://github.com/Aranya2801/IPL-Win-Prediction-Model"
+Documentation  = "https://aranya2801.github.io/IPL-Win-Prediction-Model"
+Repository     = "https://github.com/Aranya2801/IPL-Win-Prediction-Model"
+"Bug Tracker"  = "https://github.com/Aranya2801/IPL-Win-Prediction-Model/issues"
+Changelog      = "https://github.com/Aranya2801/IPL-Win-Prediction-Model/blob/main/CHANGELOG.md"
+
+[project.scripts]
+ipl-train   = "src.models.train_model:main"
+ipl-api     = "src.api.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "streamlit_app*", "scripts*"]
+
+# ── Black ──────────────────────────────────────────────────────────────────
+[tool.black]
+line-length    = 100
+target-version = ["py39", "py310", "py311"]
+include        = '\.(py)$'
+
+# ── isort ─────────────────────────────────────────────────────────────────
+[tool.isort]
+profile                   = "black"
+line_length               = 100
+known_first_party         = ["src", "streamlit_app", "scripts"]
+known_third_party         = ["numpy", "pandas", "sklearn", "xgboost", "lightgbm", "optuna",
+                              "streamlit", "fastapi", "plotly", "shap"]
+
+# ── mypy ──────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version         = "3.11"
+warn_return_any        = true
+warn_unused_configs    = true
+ignore_missing_imports = true
+
+# ── pytest ────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths         = ["tests"]
+asyncio_mode      = "auto"
+addopts           = "-v --tb=short"
+filterwarnings    = ["ignore::UserWarning", "ignore::DeprecationWarning"]
+
+# ── coverage ──────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source   = ["src"]
+omit     = ["*/tests/*", "*/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under   = 70
