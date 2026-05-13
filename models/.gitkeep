@@ -1,0 +1,4 @@
+This directory stores trained model artifacts.
+Run `python src/models/train_model.py` to generate:
+  - ipl_stacked_ensemble.pkl
+  - ipl_stacked_ensemble.json
